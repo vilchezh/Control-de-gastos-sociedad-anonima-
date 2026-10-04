@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2a6df4"><title>Gastos con mi socio</title>
+<meta name="theme-color" content="#2a6df4"><title>Control de gastos Sociedad Anónima</title>
 <style>
 :root{--bg:#f6f7f9;--card:#fff;--tx:#14181f;--mu:#667085;--ac:#2a6df4;--ok:#12805c;--bad:#c0392b;--bd:#e3e6eb}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#1a1f29;--tx:#eef1f6;--mu:#98a2b3;--ac:#4b82f0;--ok:#43c59e;--bad:#ff7a6b;--bd:#2c3340}}
+@media (prefers-color-scheme:dark){:root:not([data-theme]){--bg:#0f1218;--card:#1a1f29;--tx:#eef1f6;--mu:#98a2b3;--ac:#4b82f0;--ok:#43c59e;--bad:#ff7a6b;--bd:#2c3340}}
+:root[data-theme="dark"]{--bg:#0f1218;--card:#1a1f29;--tx:#eef1f6;--mu:#98a2b3;--ac:#4b82f0;--ok:#43c59e;--bad:#ff7a6b;--bd:#2c3340}
+:root[data-theme="light"]{--bg:#f6f7f9;--card:#fff;--tx:#14181f;--mu:#667085;--ac:#2a6df4;--ok:#12805c;--bad:#c0392b;--bd:#e3e6eb}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
 main{max-width:620px;margin:0 auto;padding:14px}h1{font-size:20px;margin:6px 0 12px;display:flex;justify-content:space-between;align-items:center}
 h2{font-size:14px;color:var(--mu);margin:18px 0 8px;text-transform:uppercase;letter-spacing:.04em}
@@ -13,9 +15,15 @@ h2{font-size:14px;color:var(--mu);margin:18px 0 8px;text-transform:uppercase;let
 input,select,button{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px;width:100%;margin-bottom:8px}
 button{background:var(--ac);color:#fff;border:0;font-weight:600;cursor:pointer}button.sec{background:transparent;color:var(--mu);border:1px solid var(--bd);width:auto;padding:4px 10px;font-weight:400;font-size:12px;margin:4px 0 0}
 .row{display:flex;gap:8px}.row>*{flex:1;min-width:0}.item{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)}.item:last-child{border:0}.r{text-align:right;white-space:nowrap}
+.sw{width:38px;height:38px;border-radius:50%;padding:0;margin:0;border:3px solid transparent}.sw.on{border-color:var(--tx)}
 [hidden]{display:none!important}
 </style></head><body><main>
-<h1>Gastos con mi socio <span><button class="sec" id="cc" hidden>Cambiar conexión</button> <button class="sec" id="out" hidden>Salir</button></span></h1>
+<h1><span>Control de gastos Sociedad Anónima</span> <button class="sec" id="gear" aria-label="Ajustes" style="font-size:20px;line-height:1">⚙</button></h1>
+<div id="cfg" class="card" hidden><b>Ajustes</b>
+<div class="mu" style="margin:8px 0 6px">Color de la página</div><div id="sw" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
+<div class="mu" style="margin-bottom:6px">Moneda para cargar y ver montos</div><select id="cu"><option value="usd">Dólares (US$)</option><option value="ars">Pesos (ARS)</option></select>
+<div class="mu" style="margin-bottom:6px">Modo</div><select id="th"><option value="auto">Automático</option><option value="light">Claro</option><option value="dark">Oscuro</option></select>
+<div class="row"><button class="sec" id="cc" hidden>Cambiar conexión</button><button class="sec" id="out" hidden>Salir</button></div></div>
 
 <div id="setup" class="card" hidden><b>Conexión (una sola vez)</b><p class="mu">Pega los datos de Supabase (Project Settings → API).</p>
 <input id="su" placeholder="Project URL (https://xxxx.supabase.co)"><input id="sk" placeholder="anon public key"><button id="ss">Guardar</button></div>
@@ -31,9 +39,10 @@ button{background:var(--ac);color:#fff;border:0;font-weight:600;cursor:pointer}b
 <div class="row" style="align-items:center"><div class="mu" id="rmeta" style="flex:3"></div><button class="sec" id="rf" style="flex:1">↻ Actualizar</button></div></div>
 <h2>Nuevo gasto</h2>
 <div class="card"><input id="desc" placeholder="Concepto (ej: Claude Pro)">
-<div class="row"><input id="usd" inputmode="decimal" placeholder="Monto en USD"><select id="cat"><option>IA</option><option>Publicidad</option><option>Stock</option><option>Otro</option></select></div>
+<div class="row"><input id="usd" inputmode="decimal" placeholder="Total del gasto en USD"><select id="cat"><option>IA</option><option>Publicidad</option><option>Stock</option><option>Otro</option></select></div>
 <div class="row"><select id="mode"><option value="eq">Mitad y mitad</option><option value="pct">% personalizado</option></select><input id="pct" inputmode="decimal" placeholder="% de la otra persona" hidden></div>
-<div class="mu" style="margin-bottom:8px">Pagué yo. La otra persona me debe su parte.</div><button id="add">Agregar gasto</button></div>
+<input id="paid" inputmode="decimal" placeholder="Pagué yo (vacío = pagué todo)">
+<div class="mu" style="margin-bottom:8px">Si pagaste menos que el total, la otra persona puso el resto. Cada uno cubre su parte según el %.</div><button id="add">Agregar gasto</button></div>
 <h2>Deudas compartidas</h2>
 <div class="card"><b>Nueva deuda</b><div class="mu" style="margin:4px 0 8px">Ej: debemos US$ 50 a un proveedor y cada uno paga US$ 25.</div>
 <input id="dd" placeholder="Concepto (ej: Proveedor X)"><div class="row"><input id="dt" inputmode="decimal" placeholder="Total en USD"><select id="dm"><option value="eq">Mitad y mitad</option><option value="pct">% personalizado</option></select></div>
@@ -50,29 +59,36 @@ const f=(n,d=2)=>Number(n).toLocaleString('es-AR',{minimumFractionDigits:d,maxim
 const ls=(k,v)=>{try{return v===undefined?localStorage.getItem(k):localStorage.setItem(k,v)}catch(e){}};
 let sb,me,gastos=[],pagos=[],rates={},kind=ls('kind')||'blue';
 const rate=()=>Number(rates[kind])||0,ars=u=>rate()?'≈ $ '+f(u*rate(),0):'';
+let cur=ls('cur')||'usd';
+const isArs=()=>cur==='ars'&&rate()>0;
+const M=u=>isArs()?'$ '+f(u*rate(),0):'US$ '+f(u);
+const S=u=>isArs()?'≈ US$ '+f(u):ars(u);
+const toUsd=v=>Math.round((cur==='ars'?v/rate():v)*10000)/10000;
+const noRate=()=>cur==='ars'&&!rate()&&(alert('Primero cargá la cotización del dólar'),true);
+function applyCur(){const u=cur==='ars'?'pesos':'USD';$('#usd').placeholder='Total del gasto en '+u;$('#dt').placeholder='Total en '+u;$('#paid').placeholder='Pagué yo, en '+u+' (vacío = pagué todo)';$('#cu').value=cur}
 const who=e=>e===me?'Vos':String(e).split('@')[0];
 const two=(b,label,fn)=>{b.onclick=()=>{if(b.dataset.s)fn();else{b.dataset.s=1;b.textContent='¿Seguro?';setTimeout(()=>{delete b.dataset.s;b.textContent=label},3000)}}};
 const show=id=>{['setup','login','app'].forEach(i=>$('#'+i).hidden=i!==id);$('#cc').hidden=id==='setup'};
 $('#cc').onclick=()=>{ls('su','');ls('sk','');location.reload()};
 
-function net(){let n=0;gastos.forEach(g=>{const o=g.usd*g.owed_pct/100;n+=g.payer===me?o:-o});
+function net(){let n=0;gastos.forEach(g=>{const o=(g.paid==null?+g.usd:+g.paid)-g.usd*(100-g.owed_pct)/100;n+=g.payer===me?o:-o});
  pagos.forEach(p=>{n+=(p.dir==='paid')===(p.by_email===me)?+p.usd:-p.usd});return Math.round(n*100)/100}
 
 function render(){
  const n=net(),b=$('#bal');b.className='big '+(n>0?'ok':n<0?'bad':'');
- b.textContent=n===0?'Están a mano':(n>0?'Te deben US$ ':'Debés US$ ')+f(Math.abs(n));
- $('#balars').textContent=n?(rate()?ars(Math.abs(n))+' ('+kind+')':'Cargá la cotización para ver pesos'):'';
+ b.textContent=n===0?'Están a mano':(n>0?'Te deben ':'Debés ')+M(Math.abs(n));
+ $('#balars').textContent=n?(rate()?S(Math.abs(n))+' ('+kind+')':'Cargá la cotización para ver pesos'):'';
  const s=$('#settle');s.innerHTML='';
  if(n){const bt=document.createElement('button');bt.textContent=n<0?'Registrar que pagué':'Registrar que me pagaron';s.append(bt);two(bt,bt.textContent,()=>settle(n))}
  const L=$('#list');L.innerHTML=gastos.length+pagos.length?'':'<div class="mu">Todavía no hay movimientos.</div>';
  [...gastos.map(g=>({t:'g',ts:g.created_at,g})),...pagos.map(p=>({t:'p',ts:p.created_at,p}))].sort((a,b)=>b.ts<a.ts?-1:1).forEach(it=>{
   const d=document.createElement('div');d.className='item';const dt=new Date(it.ts).toLocaleDateString('es-AR',{day:'numeric',month:'short'});
-  if(it.t==='g'){const g=it.g;d.innerHTML=`<div><b>${esc(g.descr)}</b><div class="mu">${esc(g.cat)} · pagó ${esc(who(g.payer))} · ${dt}<br>Parte del otro: ${g.owed_pct}% = US$ ${f(g.usd*g.owed_pct/100)}</div></div><div class="r"><b>US$ ${f(g.usd)}</b><div class="mu">${ars(g.usd)}</div></div>`;
+  if(it.t==='g'){const g=it.g;d.innerHTML=`<div><b>${esc(g.descr)}</b><div class="mu">${esc(g.cat)} · pagó ${esc(who(g.payer))} · ${dt}<br>Parte del otro: ${g.owed_pct}% = ${M(g.usd*g.owed_pct/100)}${g.paid!=null&&Math.abs(g.paid-g.usd)>0.004?'<br>Pagó '+M(g.paid)+' · el otro '+M(g.usd-g.paid):''}</div></div><div class="r"><b>${M(g.usd)}</b><div class="mu">${S(g.usd)}</div></div>`;
    if(g.payer===me){const x=document.createElement('button');x.className='sec';x.textContent='Borrar';d.lastChild.append(x);two(x,'Borrar',async()=>{await sb.from('gastos').delete().eq('id',g.id);load()})}}
-  else{const p=it.p,mine=p.by_email===me,paid=(p.dir==='paid')===mine;d.innerHTML=`<div><b>Pago registrado</b><div class="mu">${paid?'Pagaste':'Te pagaron'} · ${dt}${p.rate?' · dólar '+esc(p.kind)+' $'+f(p.rate,0):''}</div></div><div class="r"><b>US$ ${f(p.usd)}</b><div class="mu">${p.rate?'$ '+f(p.usd*p.rate,0):''}</div></div>`}
+  else{const p=it.p,mine=p.by_email===me,paid=(p.dir==='paid')===mine;d.innerHTML=`<div><b>Pago registrado</b><div class="mu">${paid?'Pagaste':'Te pagaron'} · ${dt}${p.rate?' · dólar '+esc(p.kind)+' $'+f(p.rate,0):''}</div></div><div class="r"><b>${isArs()?'$ '+f(p.usd*(p.rate||rate()),0):'US$ '+f(p.usd)}</b><div class="mu">${isArs()?'≈ US$ '+f(p.usd):(p.rate?'$ '+f(p.usd*p.rate,0):'')}</div></div>`}
   L.append(d)});
  const c={};gastos.forEach(g=>c[g.cat]=(c[g.cat]||0)+ +g.usd);
- $('#cats').innerHTML=Object.keys(c).length?Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="item"><span>${esc(k)}</span><span class="r">US$ ${f(v)} <span class="mu">${ars(v)}</span></span></div>`).join(''):'<div class="mu">Sin datos aún.</div>';
+ $('#cats').innerHTML=Object.keys(c).length?Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="item"><span>${esc(k)}</span><span class="r">${M(v)} <span class="mu">${S(v)}</span></span></div>`).join(''):'<div class="mu">Sin datos aún.</div>';
  if(document.activeElement!==$('#rate'))$('#rate').value=rates[kind]||'';
  renderDeudas();
 }
@@ -96,18 +112,30 @@ function renderDeudas(){const box=$('#deudas');
   const paid={};abonos.filter(a=>a.deuda_id===d.id).forEach(a=>paid[a.by_email]=(paid[a.by_email]||0)+ +a.usd);
   const rows=Object.keys(sh).map(e=>({e,sh:sh[e],paid:paid[e]||0,rem:Math.max(0,Math.round((sh[e]-(paid[e]||0))*100)/100)}));
   const tot=rows.reduce((a,r)=>a+r.rem,0),done=tot<0.005,c=document.createElement('div');c.className='card';
-  c.innerHTML=`<div><b>${esc(d.descr)}</b><div class="mu">Total US$ ${f(d.usd)} ${ars(d.usd)} · ${done?'<span class="ok">Saldada ✓</span>':'faltan US$ '+f(tot)}</div></div>`+rows.map(r=>`<div class="item"><div>${esc(who(r.e))}<div class="mu">le toca US$ ${f(r.sh)} · pagó US$ ${f(r.paid)}</div></div><div class="r ${r.rem?'bad':'ok'}">${r.rem?'Debe US$ '+f(r.rem):'Al día ✓'}</div></div>`).join('');
+  c.innerHTML=`<div><b>${esc(d.descr)}</b><div class="mu">Total ${M(d.usd)} ${S(d.usd)} · ${done?'<span class="ok">Saldada ✓</span>':'faltan '+M(tot)}</div></div>`+rows.map(r=>`<div class="item"><div>${esc(who(r.e))}<div class="mu">le toca ${M(r.sh)} · pagó ${M(r.paid)}</div></div><div class="r ${r.rem?'bad':'ok'}">${r.rem?'Debe '+M(r.rem):'Al día ✓'}</div></div>`).join('');
   const mine=rows.find(r=>r.e===me);
-  if(mine&&mine.rem>0){const w=document.createElement('div');w.className='row';w.innerHTML=`<input inputmode="decimal" value="${mine.rem}"><button>Registrar mi pago</button>`;c.append(w);
-   w.lastChild.onclick=async()=>{const v=parseFloat(w.firstChild.value.replace(',','.'));if(!(v>0)||v>mine.rem+0.005){alert('Monto inválido (máximo US$ '+f(mine.rem)+')');return}
+  if(mine&&mine.rem>0){const w=document.createElement('div');w.className='row';w.innerHTML=`<input inputmode="decimal" value="${isArs()?Math.round(mine.rem*rate()):mine.rem}"><button>Registrar mi pago</button>`;c.append(w);
+   w.lastChild.onclick=async()=>{if(noRate())return;let v=toUsd(parseFloat(w.firstChild.value.replace(',','.')));if(!(v>0)||v>mine.rem+0.01){alert('Monto inválido (máximo '+M(mine.rem)+')');return}v=Math.min(v,mine.rem);
     const {error}=await sb.from('abonos').insert({deuda_id:d.id,usd:v,rate:rate()||null,kind});if(error){alert(error.message);return}load()}}
   if(d.creator===me){const x=document.createElement('button');x.className='sec';x.textContent='Borrar deuda';c.append(x);two(x,'Borrar deuda',async()=>{await sb.from('deudas').delete().eq('id',d.id);load()})}
   box.append(c)})}
 $('#dm').onchange=()=>$('#dp').hidden=$('#dm').value==='eq';
-$('#dadd').onclick=async()=>{const t=parseFloat($('#dt').value.replace(',','.')),descr=$('#dd').value.trim(),pc=$('#dm').value==='eq'?50:parseFloat($('#dp').value.replace(',','.'));
+$('#dadd').onclick=async()=>{if(noRate())return;const t=toUsd(parseFloat($('#dt').value.replace(',','.'))),descr=$('#dd').value.trim(),pc=$('#dm').value==='eq'?50:parseFloat($('#dp').value.replace(',','.'));
  if(!descr||!(t>0)||!(pc>=0&&pc<=100)){alert('Revisá concepto, total y porcentaje');return}
  const {error}=await sb.from('deudas').insert({descr,usd:t,creator_pct:pc,rate:rate()||null,kind});
  if(error){alert(error.message);return}$('#dd').value='';$('#dt').value='';load()};
+const COLORS=['#2a6df4','#12805c','#7c3aed','#e8590c','#d6336c','#c0392b','#0e7490','#475569'];
+function applyTheme(){const r=document.documentElement,ac=ls('ac'),th=ls('theme')||'auto';
+ ac?r.style.setProperty('--ac',ac):r.style.removeProperty('--ac');
+ th==='auto'?r.removeAttribute('data-theme'):r.setAttribute('data-theme',th);
+ document.querySelector('meta[name=theme-color]').content=ac||'#2a6df4';
+ document.querySelectorAll('.sw').forEach(b=>b.classList.toggle('on',b.dataset.c===(ac||COLORS[0])));$('#th').value=th}
+COLORS.forEach(c=>{const b=document.createElement('button');b.className='sw';b.dataset.c=c;b.style.background=c;b.setAttribute('aria-label',c);b.onclick=()=>{ls('ac',c);applyTheme()};$('#sw').append(b)});
+$('#th').onchange=()=>{ls('theme',$('#th').value);applyTheme()};
+$('#cu').onchange=()=>{cur=$('#cu').value;ls('cur',cur);applyCur();render()};
+applyCur();
+$('#gear').onclick=()=>$('#cfg').hidden=!$('#cfg').hidden;
+applyTheme();
 const KW={IA:['claude','chatgpt','gpt','openai','anthropic','gemini','midjourney','cursor','copilot','perplexity'],Publicidad:['publicidad','ads','anuncio','facebook','instagram','tiktok','campa[ñn]a','influencer'],Stock:['stock','mercader','inventario','proveedor','insumo']};
 let manual=false;
 const guess=t=>{t=t.toLowerCase().trim();if(!t)return null;const h=gastos.find(g=>g.descr.toLowerCase().trim()===t);if(h)return h.cat;
@@ -118,10 +146,11 @@ $('#mode').onchange=()=>$('#pct').hidden=$('#mode').value==='eq';
 $('#kind').value=kind;$('#kind').onchange=()=>{kind=$('#kind').value;ls('kind',kind);render()};
 $('#rf').onclick=fetchRates;
 $('#rate').onchange=async()=>{const v=parseFloat($('#rate').value.replace(',','.'));if(v>0){rates[kind]=v;await sb.from('config').update({[kind]:v}).eq('id',1);$('#rmeta').textContent='Cotización manual';render()}};
-$('#add').onclick=async()=>{const usd=parseFloat($('#usd').value.replace(',','.')),descr=$('#desc').value.trim(),pct=$('#mode').value==='eq'?50:parseFloat($('#pct').value.replace(',','.'));
- if(!descr||!(usd>0)||!(pct>=0&&pct<=100)){alert('Revisá concepto, monto y porcentaje');return}
- const {error}=await sb.from('gastos').insert({descr,usd,cat:$('#cat').value,owed_pct:pct,rate:rate()||null,kind});
- if(error){alert(error.message);return}$('#desc').value='';$('#usd').value='';manual=false;load()};
+$('#add').onclick=async()=>{if(noRate())return;const usd=toUsd(parseFloat($('#usd').value.replace(',','.'))),descr=$('#desc').value.trim(),pct=$('#mode').value==='eq'?50:parseFloat($('#pct').value.replace(',','.'));
+ const pr=$('#paid').value.trim(),paid=pr===''?null:toUsd(parseFloat(pr.replace(',','.')));
+ if(!descr||!(usd>0)||!(pct>=0&&pct<=100)||(paid!==null&&!(paid>=0&&paid<=usd+0.01))){alert('Revisá concepto, monto, lo que pagaste (no puede superar el total) y porcentaje');return}
+ const {error}=await sb.from('gastos').insert({descr,usd,paid:paid===null?null:Math.min(paid,usd),cat:$('#cat').value,owed_pct:pct,rate:rate()||null,kind});
+ if(error){alert(error.message);return}$('#desc').value='';$('#usd').value='';$('#paid').value='';manual=false;load()};
 
 async function start(){
  const {data:{session}}=await sb.auth.getSession();

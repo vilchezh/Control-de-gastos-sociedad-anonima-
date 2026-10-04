@@ -34,6 +34,11 @@ button{background:var(--ac);color:#fff;border:0;font-weight:600;cursor:pointer}b
 <div class="row"><input id="usd" inputmode="decimal" placeholder="Monto en USD"><select id="cat"><option>IA</option><option>Publicidad</option><option>Stock</option><option>Otro</option></select></div>
 <div class="row"><select id="mode"><option value="eq">Mitad y mitad</option><option value="pct">% personalizado</option></select><input id="pct" inputmode="decimal" placeholder="% de la otra persona" hidden></div>
 <div class="mu" style="margin-bottom:8px">Pagué yo. La otra persona me debe su parte.</div><button id="add">Agregar gasto</button></div>
+<h2>Deudas compartidas</h2>
+<div class="card"><b>Nueva deuda</b><div class="mu" style="margin:4px 0 8px">Ej: debemos US$ 50 a un proveedor y cada uno paga US$ 25.</div>
+<input id="dd" placeholder="Concepto (ej: Proveedor X)"><div class="row"><input id="dt" inputmode="decimal" placeholder="Total en USD"><select id="dm"><option value="eq">Mitad y mitad</option><option value="pct">% personalizado</option></select></div>
+<input id="dp" inputmode="decimal" placeholder="% que te corresponde a vos" hidden><button id="dadd">Agregar deuda</button></div>
+<div id="deudas"></div>
 <h2>Por categoría</h2><div class="card" id="cats"></div>
 <h2>Historial</h2><div class="card" id="list"></div>
 </div>
@@ -69,11 +74,12 @@ function render(){
  const c={};gastos.forEach(g=>c[g.cat]=(c[g.cat]||0)+ +g.usd);
  $('#cats').innerHTML=Object.keys(c).length?Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="item"><span>${esc(k)}</span><span class="r">US$ ${f(v)} <span class="mu">${ars(v)}</span></span></div>`).join(''):'<div class="mu">Sin datos aún.</div>';
  if(document.activeElement!==$('#rate'))$('#rate').value=rates[kind]||'';
+ renderDeudas();
 }
 async function load(){
- const [g,p,c]=await Promise.all([sb.from('gastos').select('*'),sb.from('pagos').select('*'),sb.from('config').select('*').eq('id',1).maybeSingle()]);
+ const [g,p,c,dd,ab,so]=await Promise.all([sb.from('gastos').select('*'),sb.from('pagos').select('*'),sb.from('config').select('*').eq('id',1).maybeSingle(),sb.from('deudas').select('*').order('created_at',{ascending:false}),sb.from('abonos').select('*'),sb.from('socios').select('email')]);
  if(g.error){$('#rmeta').textContent='Error: '+g.error.message+' (¿corriste setup.sql y tu correo está en socios?)';return}
- gastos=g.data;pagos=p.data;if(c.data)rates={...c.data,...rates};render()}
+ gastos=g.data;pagos=p.data;deudaErr=!!(dd.error||ab.error);deudas=dd.data||[];abonos=ab.data||[];partners=(so.data||[]).map(x=>x.email.toLowerCase());if(c.data)rates={...c.data,...rates};render()}
 async function fetchRates(){
  try{const d=await (await fetch('https://dolarapi.com/v1/dolares')).json(),r={};
   d.forEach(x=>{if(['blue','bolsa','oficial'].includes(x.casa))r[x.casa]=x.venta});
@@ -82,6 +88,26 @@ async function fetchRates(){
  catch(e){$('#rmeta').textContent='Sin conexión a la API: se usa el último valor guardado'}render()}
 async function settle(n){await sb.from('pagos').insert({dir:n<0?'paid':'received',usd:Math.abs(n),rate:rate()||null,kind});load()}
 
+let deudas=[],abonos=[],partners=[],deudaErr=false;
+function renderDeudas(){const box=$('#deudas');
+ if(deudaErr){box.innerHTML='<div class="card mu">Falta ejecutar el SQL de deudas en Supabase.</div>';return}
+ box.innerHTML=deudas.length?'':'<div class="card mu">No hay deudas cargadas.</div>';
+ deudas.forEach(d=>{const sh={};const cr=d.creator,ot=partners.find(e=>e!==cr);sh[cr]=d.usd*d.creator_pct/100;if(ot)sh[ot]=d.usd-sh[cr];
+  const paid={};abonos.filter(a=>a.deuda_id===d.id).forEach(a=>paid[a.by_email]=(paid[a.by_email]||0)+ +a.usd);
+  const rows=Object.keys(sh).map(e=>({e,sh:sh[e],paid:paid[e]||0,rem:Math.max(0,Math.round((sh[e]-(paid[e]||0))*100)/100)}));
+  const tot=rows.reduce((a,r)=>a+r.rem,0),done=tot<0.005,c=document.createElement('div');c.className='card';
+  c.innerHTML=`<div><b>${esc(d.descr)}</b><div class="mu">Total US$ ${f(d.usd)} ${ars(d.usd)} · ${done?'<span class="ok">Saldada ✓</span>':'faltan US$ '+f(tot)}</div></div>`+rows.map(r=>`<div class="item"><div>${esc(who(r.e))}<div class="mu">le toca US$ ${f(r.sh)} · pagó US$ ${f(r.paid)}</div></div><div class="r ${r.rem?'bad':'ok'}">${r.rem?'Debe US$ '+f(r.rem):'Al día ✓'}</div></div>`).join('');
+  const mine=rows.find(r=>r.e===me);
+  if(mine&&mine.rem>0){const w=document.createElement('div');w.className='row';w.innerHTML=`<input inputmode="decimal" value="${mine.rem}"><button>Registrar mi pago</button>`;c.append(w);
+   w.lastChild.onclick=async()=>{const v=parseFloat(w.firstChild.value.replace(',','.'));if(!(v>0)||v>mine.rem+0.005){alert('Monto inválido (máximo US$ '+f(mine.rem)+')');return}
+    const {error}=await sb.from('abonos').insert({deuda_id:d.id,usd:v,rate:rate()||null,kind});if(error){alert(error.message);return}load()}}
+  if(d.creator===me){const x=document.createElement('button');x.className='sec';x.textContent='Borrar deuda';c.append(x);two(x,'Borrar deuda',async()=>{await sb.from('deudas').delete().eq('id',d.id);load()})}
+  box.append(c)})}
+$('#dm').onchange=()=>$('#dp').hidden=$('#dm').value==='eq';
+$('#dadd').onclick=async()=>{const t=parseFloat($('#dt').value.replace(',','.')),descr=$('#dd').value.trim(),pc=$('#dm').value==='eq'?50:parseFloat($('#dp').value.replace(',','.'));
+ if(!descr||!(t>0)||!(pc>=0&&pc<=100)){alert('Revisá concepto, total y porcentaje');return}
+ const {error}=await sb.from('deudas').insert({descr,usd:t,creator_pct:pc,rate:rate()||null,kind});
+ if(error){alert(error.message);return}$('#dd').value='';$('#dt').value='';load()};
 const KW={IA:['claude','chatgpt','gpt','openai','anthropic','gemini','midjourney','cursor','copilot','perplexity'],Publicidad:['publicidad','ads','anuncio','facebook','instagram','tiktok','campa[ñn]a','influencer'],Stock:['stock','mercader','inventario','proveedor','insumo']};
 let manual=false;
 const guess=t=>{t=t.toLowerCase().trim();if(!t)return null;const h=gastos.find(g=>g.descr.toLowerCase().trim()===t);if(h)return h.cat;
@@ -110,6 +136,7 @@ const auth=async up=>{$('#lm').textContent='…';const a={email:$('#em').value.t
  if(up&&!data.session){$('#lm').textContent='Revisá tu correo para confirmar la cuenta y luego entrá.';return}start()};
 $('#bin').onclick=()=>auth(false);$('#bup').onclick=()=>auth(true);
 $('#ss').onclick=()=>{ls('su',$('#su').value.trim());ls('sk',$('#sk').value.trim());location.reload()};
-const U=SUPABASE_URL||ls('su'),K=SUPABASE_KEY||ls('sk');
+const norm=u=>{u=(u||'').trim();try{return new URL(u).origin}catch(e){return u}};
+const U=norm(SUPABASE_URL||ls('su')),K=(SUPABASE_KEY||ls('sk')||'').trim();
 if(!U||!K)show('setup');else{sb=supabase.createClient(U,K);start()}
 </script></main></body></html>

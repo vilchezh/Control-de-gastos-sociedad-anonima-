@@ -86,11 +86,16 @@ function applyCur(){const u=cur==='ars'?'pesos':'USD';$('#usd').placeholder='Tot
 let names={};
 const nm=e=>names[e]||String(e||'').split('@')[0],who=nm,oth=e=>partners.find(x=>x!==e)||'';
 function parts(g){const po=g.paid_other==null?0:+g.paid_other,pm=g.paid==null?(g.usd-po):+g.paid;return {pm,po}}
-function detail(g){const {pm,po}=parts(g),ow=g.owed_pct/100,ps=g.usd*(1-ow),os=g.usd*ow,tot=pm+po,pend=g.usd-tot,o=oth(g.payer),on=o?nm(o):'el otro',pn=nm(g.payer),d=pm-tot*(1-ow);
- let r='<br>Pagó '+esc(pn)+' '+M(pm)+(po>0.004?' · '+esc(on)+' '+M(po):'');
- if(pend>0.004)r+='<br>Sin pagar todavía: '+M(pend)+' (no cuenta en el saldo)';
- r+=`<br>Le toca a cada uno: ${esc(pn)} ${M(ps)} · ${esc(on)} ${M(os)}`;
- r+=Math.abs(d)<0.005?'<br>Sin deuda entre ustedes':`<br><b>${esc(d>0?on:pn)} le debe ${M(Math.abs(d))} a ${esc(d>0?pn:on)}</b>`;return r}
+function detail(g){const {pm,po}=parts(g),sP=g.usd*(100-g.owed_pct)/100,sO=g.usd*g.owed_pct/100,pend=g.usd-pm-po,x=xfer(g),o=oth(g.payer),on=esc(o?nm(o):'el otro'),pn=esc(nm(g.payer));
+ const st=(sh,pd)=>pd>sh+0.004?'<span class="ok">puso de más '+M(pd-sh)+'</span>':pd<sh-0.004?'<span class="bad">falta pagar '+M(sh-pd)+'</span>':'<span class="ok">al día ✓</span>';
+ let r=`<br>${pn}: le toca ${M(sP)} · pagó ${M(pm)} · ${st(sP,pm)}<br>${on}: le toca ${M(sO)} · pagó ${M(po)} · ${st(sO,po)}`;
+ r+=Math.abs(x)>0.004?`<br><b>${x>0?on:pn} le debe ${M(Math.abs(x))} a ${x>0?pn:on}</b>`:(pend>0.004?'<br>Entre ustedes: a mano (nadie pagó más de lo que le toca)':'<br>Todo pagado y a mano ✓');return r}
+function addRest(d,g){const {pm,po}=parts(g),pend=g.usd-pm-po;if(pend<=0.004)return;
+ const mineP=g.payer===me,sh=mineP?g.usd*(100-g.owed_pct)/100:g.usd*g.owed_pct/100;let rem=Math.min(pend,Math.max(0,sh-(mineP?pm:po)));if(rem<=0.004)rem=pend;
+ const w=document.createElement('div');w.className='row';w.style.marginTop='8px';
+ w.innerHTML=`<input inputmode="decimal" value="${isArs()?Math.round(rem*rate()):Math.round(rem*100)/100}"><button>Registrar mi pago</button>`;d.firstChild.append(w);
+ w.lastChild.onclick=()=>{if(noRate())return;const v=toUsd(num(w.firstChild.value));if(!(v>0)||v>pend+0.01){alert('Monto inválido (máximo '+M(pend)+')');return}
+  const xv=Math.min(v,pend);ask(w,async()=>{const {error}=await sb.from('gastos').update(mineP?{paid:pm+xv}:{paid_other:po+xv}).eq('id',g.id);if(error){alert(error.message);return}load()})}}
 function ask(b,fn){if(b.nextSibling&&b.nextSibling.className==='ask')return;
  const box=document.createElement('div');box.className='ask';box.innerHTML='<b>¿Seguro?</b>';
  const y=document.createElement('button'),n=document.createElement('button');y.className='yes';y.textContent='Sí';n.className='no';n.textContent='NO';
@@ -100,7 +105,9 @@ const two=(b,label,fn)=>{b.onclick=()=>ask(b,fn)};
 const show=id=>{['setup','login','uname','app'].forEach(i=>$('#'+i).hidden=i!==id);$('#cc').hidden=id==='setup'};
 $('#cc').onclick=()=>{ls('su','');ls('sk','');location.reload()};
 
-const signed=g=>{const {pm,po}=parts(g),o=pm-(pm+po)*(100-g.owed_pct)/100;return g.payer===me?o:-o};
+function xfer(g){const {pm,po}=parts(g),eP=pm-g.usd*(100-g.owed_pct)/100,eO=po-g.usd*g.owed_pct/100;
+ return eP>0&&eO<0?Math.min(eP,-eO):eO>0&&eP<0?-Math.min(eO,-eP):0}
+const signed=g=>g.payer===me?xfer(g):-xfer(g);
 let openCats=new Set();
 function renderCats(){
  const box=$('#cats'),cs={};gastos.forEach(g=>(cs[g.cat]=cs[g.cat]||[]).push(g));
@@ -110,19 +117,19 @@ function renderCats(){
  keys.forEach(k=>{const gs=cs[k].slice().sort((a,b)=>b.created_at<a.created_at?-1:1),T=tot(k);
   let pme=0,pot=0,pend=0,nt=0;gs.forEach(g=>{const {pm,po}=parts(g);pme+=g.payer===me?pm:po;pot+=g.payer===me?po:pm;pend+=g.usd-pm-po;nt+=signed(g)});
   nt=Math.round(nt*100)/100;
-  const txt=Math.abs(nt)<0.005?'Están a mano':nt>0?esc(on)+' te debe '+M(nt):'Le debés '+M(-nt)+' a '+esc(on),cls=Math.abs(nt)<0.005?'mu':nt>0?'ok':'bad',open=openCats.has(k);
+  const txt=Math.abs(nt)<0.005?'Están a mano':nt>0?esc(on)+' te debe '+M(nt):'Le debés '+M(-nt)+' a '+esc(on),cls=Math.abs(nt)<0.005?'mu':nt>0?'ok':'bad',open=openCats.has(k),pt=pend>0.004?' · falta pagar '+M(pend):'';
   const w=document.createElement('div');w.className='catwrap';
-  w.innerHTML=`<div class="cath"><div><b>${esc(k)}</b> <span class="mu">· ${gs.length} gasto${gs.length>1?'s':''}</span><div class="mu ${cls}">${txt}</div></div><div class="r"><b>${M(T)}</b> <span class="mu">${open?'▴':'▾'}</span><div class="mu">${S(T)}</div></div></div>`;
+  w.innerHTML=`<div class="cath"><div><b>${esc(k)}</b> <span class="mu">· ${gs.length} gasto${gs.length>1?'s':''}</span><div class="mu ${cls}">${txt}${pt}</div></div><div class="r"><b>${M(T)}</b> <span class="mu">${open?'▴':'▾'}</span><div class="mu">${S(T)}</div></div></div>`;
   w.firstChild.onclick=()=>{open?openCats.delete(k):openCats.add(k);renderCats()};
   if(open){const bd=document.createElement('div');bd.className='catbody';
    bd.innerHTML=`<div>Total gastado: <b>${M(T)}</b></div><div>Pagado: ${esc(nm(me))} <b>${M(pme)}</b> · ${esc(on)} <b>${M(pot)}</b></div>`
-    +(pend>0.004?`<div>Sin pagar todavía: <b>${M(pend)}</b> <span class="mu">(no cuenta en el saldo)</span></div>`:'')
-    +`<div class="${cls}" style="font-weight:600;margin-top:4px">Por estos gastos: ${txt}</div>`
+    +(pend>0.004?`<div>Falta pagar en total: <b>${M(pend)}</b></div>`:'')
+    +`<div class="${cls}" style="font-weight:600;margin-top:4px">Entre ustedes: ${txt}</div>`
     +gs.map(g=>`<div class="g"><b>${esc(g.descr)}</b> · ${new Date(g.created_at).toLocaleDateString('es-AR',{day:'numeric',month:'short'})} · ${M(g.usd)}${detail(g)}</div>`).join('')
     +'<div class="mu" style="margin-top:6px">Los pagos entre ustedes se registran en total (arriba), no por categoría.</div>';
    w.append(bd)}
   box.append(w)})}
-function net(){let n=0;gastos.forEach(g=>{const {pm,po}=parts(g),o=pm-(pm+po)*(100-g.owed_pct)/100;n+=g.payer===me?o:-o});
+function net(){let n=0;gastos.forEach(g=>{n+=signed(g)});
  pagos.forEach(p=>{n+=(p.dir==='paid')===(p.by_email===me)?+p.usd:-p.usd});return Math.round(n*100)/100}
 
 function render(){
@@ -137,6 +144,7 @@ function render(){
  [...gastos.map(g=>({t:'g',ts:g.created_at,g})),...pagos.map(p=>({t:'p',ts:p.created_at,p}))].sort((a,b)=>b.ts<a.ts?-1:1).forEach(it=>{
   const d=document.createElement('div');d.className='item';const dt=new Date(it.ts).toLocaleDateString('es-AR',{day:'numeric',month:'short'});
   if(it.t==='g'){const g=it.g;d.innerHTML=`<div><b>${esc(g.descr)}</b><div class="mu">${esc(g.cat)} · ${dt}${detail(g)}</div></div><div class="r"><b>${M(g.usd)}</b><div class="mu">${S(g.usd)}</div></div>`;
+   addRest(d,g);
    if(g.payer===me){const x=document.createElement('button');x.className='sec';x.textContent='Borrar';d.lastChild.append(x);two(x,'Borrar',async()=>{await sb.from('gastos').delete().eq('id',g.id);load()})}}
   else{const p=it.p,mine=p.by_email===me,paid=(p.dir==='paid')===mine;d.innerHTML=`<div><b>Pago registrado</b><div class="mu">${esc(nm(p.by_email))} ${p.dir==='paid'?'le pagó a':'recibió un pago de'} ${esc(oth(p.by_email)?nm(oth(p.by_email)):'el otro')} · ${dt}${p.rate?' · dólar '+esc(p.kind)+' $'+f(p.rate,0):''}</div></div><div class="r"><b>${isArs()?'$ '+f(p.usd*(p.rate||rate()),0):'US$ '+f(p.usd)}</b><div class="mu">${isArs()?'≈ US$ '+f(p.usd):(p.rate?'$ '+f(p.usd*p.rate,0):'')}</div></div>`}
   L.append(d)});
